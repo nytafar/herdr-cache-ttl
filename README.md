@@ -54,6 +54,8 @@ Create `config.json` in the plugin config directory (`herdr plugin config-dir ca
 | `ttl_seconds` | `3600` | Cache TTL duration (60 min for standard, 300 for overage) |
 | `tick_interval` | `15` | Seconds between countdown updates |
 | `seconds_threshold` | `300` | Show `m:ss` format below this many seconds |
+| `warn_at` | `600` | Amber threshold — seconds remaining |
+| `crit_at` | `300` | Red threshold — seconds remaining |
 
 ## Actions
 

@@ -25,10 +25,6 @@ printf '%s' "$$" > "$PID_FILE"
 CLEANUP_INTERVAL=10
 tick_count=0
 
-# Color thresholds (seconds remaining)
-WARN_AT=600   # amber below 10 minutes
-CRIT_AT=300   # red below 5 minutes
-
 format_remaining() {
     local remaining=$1
     if (( remaining <= 0 )); then

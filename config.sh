@@ -5,6 +5,10 @@ DEFAULT_TTL_SECONDS=3600   # 60 minutes
 TICK_INTERVAL=15           # seconds between countdown updates
 SECONDS_DISPLAY_THRESHOLD=300  # show m:ss below 5 minutes
 
+# Color tier thresholds (seconds remaining)
+WARN_AT=600    # amber below 10 minutes
+CRIT_AT=300    # red below 5 minutes
+
 # Notification thresholds in seconds remaining (descending order)
 WARN_THRESHOLDS=(600 300 60)
 
@@ -36,5 +40,9 @@ load_user_config() {
         [[ -n "$val" ]] && TICK_INTERVAL="$val"
         val=$(jq -r '.seconds_threshold // empty' "$USER_CONFIG" 2>/dev/null)
         [[ -n "$val" ]] && SECONDS_DISPLAY_THRESHOLD="$val"
+        val=$(jq -r '.warn_at // empty' "$USER_CONFIG" 2>/dev/null)
+        [[ -n "$val" ]] && WARN_AT="$val"
+        val=$(jq -r '.crit_at // empty' "$USER_CONFIG" 2>/dev/null)
+        [[ -n "$val" ]] && CRIT_AT="$val"
     fi
 }
