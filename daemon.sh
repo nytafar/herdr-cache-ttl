@@ -10,8 +10,6 @@
 #   cache_warn (amber)  — getting low
 #   cache_crit (red)    — critical or expired
 
-set -eo pipefail
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/config.sh"
 load_user_config
@@ -24,6 +22,9 @@ printf '%s' "$$" > "$PID_FILE"
 
 CLEANUP_INTERVAL=10
 tick_count=0
+consecutive_failures=0
+
+log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
 
 format_remaining() {
     local remaining=$1
@@ -55,26 +56,32 @@ set_pane_tokens() {
         args+=(--token "cache_ok=${label}" --clear-token cache_warn --clear-token cache_crit)
     fi
 
-    herdr pane report-metadata "${args[@]}" 2>/dev/null || true
+    if herdr pane report-metadata "${args[@]}" 2>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
 }
 
 check_notification_threshold() {
     local pane_id=$1
     local remaining=$2
-    local notified
 
-    notified=$(jq -r --arg pid "$pane_id" '.[$pid] // "[]"' "$NOTIFIED_FILE" 2>/dev/null)
+    [[ -f "$NOTIFIED_FILE" ]] || printf '{}' > "$NOTIFIED_FILE"
+    local notified
+    notified=$(jq -r --arg pid "$pane_id" '.[$pid] // "[]"' "$NOTIFIED_FILE" 2>/dev/null) || return 0
     [[ "$notified" == "null" ]] && notified="[]"
 
     for threshold in "${WARN_THRESHOLDS[@]}"; do
         if (( remaining <= threshold && remaining > 0 )); then
             local already
-            already=$(printf '%s' "$notified" | jq --argjson t "$threshold" 'map(select(. == $t)) | length')
+            already=$(printf '%s' "$notified" | jq --argjson t "$threshold" 'map(select(. == $t)) | length' 2>/dev/null) || return 0
             if [[ "$already" == "0" ]]; then
                 local label
                 label=$(format_remaining "$threshold")
                 local title
-                title=$(herdr agent get "$pane_id" 2>/dev/null | jq -r '.result.agent.terminal_title_stripped // .result.agent.pane_id' 2>/dev/null || printf '%s' "$pane_id")
+                title=$(herdr agent get "$pane_id" 2>/dev/null | jq -r '.result.agent.terminal_title_stripped // empty' 2>/dev/null) || true
+                [[ -z "$title" ]] && title="$pane_id"
 
                 herdr notification show "Cache expires in ${label}" \
                     --body "$title" \
@@ -82,9 +89,13 @@ check_notification_threshold() {
                     2>/dev/null || true
 
                 local tmp_file="${NOTIFIED_FILE}.tmp.$$"
-                jq --arg pid "$pane_id" --argjson t "$threshold" \
+                if jq --arg pid "$pane_id" --argjson t "$threshold" \
                    '.[$pid] = ((.[$pid] // []) + [$t])' \
-                   "$NOTIFIED_FILE" > "$tmp_file" && mv "$tmp_file" "$NOTIFIED_FILE"
+                   "$NOTIFIED_FILE" > "$tmp_file" 2>/dev/null; then
+                    mv "$tmp_file" "$NOTIFIED_FILE"
+                else
+                    rm -f "$tmp_file"
+                fi
             fi
             break
         fi
@@ -94,6 +105,7 @@ check_notification_threshold() {
 prune_stale_panes() {
     local active_panes
     active_panes=$(herdr agent list 2>/dev/null | jq -r '.result.agents[]?.pane_id // empty' 2>/dev/null) || return 0
+    [[ -z "$active_panes" ]] && return 0
 
     local timers
     timers=$(cat "$TIMERS_FILE" 2>/dev/null) || return 0
@@ -104,23 +116,20 @@ prune_stale_panes() {
         if ! printf '%s\n' "$active_panes" | grep -qF "$pane_id"; then
             stale_ids+=("$pane_id")
         fi
-    done < <(printf '%s' "$timers" | jq -r 'keys[]')
+    done < <(printf '%s' "$timers" | jq -r 'keys[]' 2>/dev/null)
 
     if (( ${#stale_ids[@]} == 0 )); then return 0; fi
     for pane_id in "${stale_ids[@]}"; do
         local tmp_file="${TIMERS_FILE}.tmp.$$"
-        jq --arg pid "$pane_id" 'del(.[$pid])' \
-           "$TIMERS_FILE" > "$tmp_file" && mv "$tmp_file" "$TIMERS_FILE"
-        if [[ -f "$NOTIFIED_FILE" ]]; then
-            tmp_file="${NOTIFIED_FILE}.tmp.$$"
-            jq --arg pid "$pane_id" 'del(.[$pid])' \
-               "$NOTIFIED_FILE" > "$tmp_file" && mv "$tmp_file" "$NOTIFIED_FILE"
+        if jq --arg pid "$pane_id" 'del(.[$pid])' "$TIMERS_FILE" > "$tmp_file" 2>/dev/null; then
+            mv "$tmp_file" "$TIMERS_FILE"
+        else
+            rm -f "$tmp_file"
         fi
     done
 }
 
-log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
-log "daemon started, tick=${TICK_INTERVAL}s"
+log "daemon started, pid=$$, tick=${TICK_INTERVAL}s"
 
 while true; do
     sleep "$TICK_INTERVAL"
@@ -137,17 +146,34 @@ while true; do
         timers=$(cat "$TIMERS_FILE" 2>/dev/null) || continue
     fi
 
+    updated=0
+    failed=0
     while IFS= read -r pane_id; do
         [[ -z "$pane_id" ]] && continue
 
-        last_turn=$(printf '%s' "$timers" | jq -r --arg pid "$pane_id" '.[$pid].last_turn // 0')
-        ttl=$(printf '%s' "$timers" | jq -r --arg pid "$pane_id" '.[$pid].ttl_seconds // 3600')
+        last_turn=$(printf '%s' "$timers" | jq -r --arg pid "$pane_id" '.[$pid].last_turn // 0' 2>/dev/null) || continue
+        ttl=$(printf '%s' "$timers" | jq -r --arg pid "$pane_id" '.[$pid].ttl_seconds // 3600' 2>/dev/null) || continue
 
         elapsed=$(( now - last_turn ))
         remaining=$(( ttl - elapsed ))
 
-        set_pane_tokens "$pane_id" "$remaining"
+        if set_pane_tokens "$pane_id" "$remaining"; then
+            updated=$(( updated + 1 ))
+        else
+            failed=$(( failed + 1 ))
+        fi
+
         check_notification_threshold "$pane_id" "$remaining"
 
-    done < <(printf '%s' "$timers" | jq -r 'keys[]')
+    done < <(printf '%s' "$timers" | jq -r 'keys[]' 2>/dev/null)
+
+    if (( failed > 0 && updated == 0 )); then
+        consecutive_failures=$(( consecutive_failures + 1 ))
+        if (( consecutive_failures >= 3 )); then
+            log "all updates failing (${consecutive_failures} consecutive), backing off"
+            sleep 60
+        fi
+    else
+        consecutive_failures=0
+    fi
 done
