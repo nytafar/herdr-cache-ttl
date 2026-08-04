@@ -1,0 +1,31 @@
+id = "cache-ttl"
+name = "Cache TTL Countdown"
+version = "0.1.0"
+min_herdr_version = "0.6.10"
+description = "Live prompt-cache countdown per agent pane"
+platforms = ["linux", "macos"]
+
+[[startup]]
+command = ["bash", "daemon.sh"]
+
+[[events]]
+on = "pane.agent_status_changed"
+command = ["bash", "on-status-change.sh"]
+
+[[events]]
+on = "pane.exited"
+command = ["bash", "on-pane-closed.sh"]
+
+[[actions]]
+id = "reset"
+title = "Reset cache timer"
+description = "Reset the cache TTL countdown for the focused pane"
+contexts = ["pane"]
+command = ["bash", "reset-timer.sh"]
+
+[[actions]]
+id = "status"
+title = "Show cache timers"
+description = "Print all active cache TTL timers"
+contexts = ["workspace"]
+command = ["bash", "show-timers.sh"]
