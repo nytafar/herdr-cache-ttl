@@ -73,11 +73,18 @@ Create `config.json` in the plugin config directory (`herdr plugin config-dir ca
 - **Show cache timers** — print all active timers as a table
 - **Toggle cache sort** — sort the agent panel by cache TTL urgency
 
+## Building
+
+```bash
+make build
+```
+
+Requires Rust (cargo). The binary is copied to the plugin root as `cache-ttl`.
+
 ## Requirements
 
 - Herdr >= 0.7.5
-- `jq`
-- `bash`
+- Rust toolchain (build only)
 
 ## License
 
