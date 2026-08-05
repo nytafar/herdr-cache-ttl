@@ -1,42 +1,42 @@
 id = "cache-ttl"
 name = "Cache TTL Countdown"
-version = "0.2.1"
+version = "0.3.0"
 min_herdr_version = "0.7.5"
 description = "Live prompt-cache countdown per agent pane"
 platforms = ["linux", "macos"]
 
 [[startup]]
-command = ["bash", "daemon.sh"]
+command = ["./cache-ttl", "daemon"]
 
 [[events]]
 on = "pane.agent_status_changed"
-command = ["bash", "on-status-change.sh"]
+command = ["./cache-ttl", "on-status-change"]
 
 [[events]]
 on = "pane.closed"
-command = ["bash", "on-pane-closed.sh"]
+command = ["./cache-ttl", "on-pane-closed"]
 
 [[events]]
 on = "pane.exited"
-command = ["bash", "on-pane-closed.sh"]
+command = ["./cache-ttl", "on-pane-closed"]
 
 [[actions]]
 id = "reset"
 title = "Reset cache timer"
 description = "Reset the cache TTL countdown for the focused pane"
 contexts = ["pane"]
-command = ["bash", "reset-timer.sh"]
+command = ["./cache-ttl", "reset-timer"]
 
 [[actions]]
 id = "status"
 title = "Show cache timers"
 description = "Print all active cache TTL timers"
 contexts = ["workspace"]
-command = ["bash", "show-timers.sh"]
+command = ["./cache-ttl", "show-timers"]
 
 [[actions]]
 id = "sort"
 title = "Toggle cache sort"
 description = "Sort agent panel by cache TTL urgency"
 contexts = ["workspace"]
-command = ["bash", "toggle-sort.sh"]
+command = ["./cache-ttl", "toggle-sort"]
