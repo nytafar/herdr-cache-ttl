@@ -77,14 +77,17 @@ pub fn run(cfg: &Config) -> io::Result<()> {
 
         let mut updated = 0;
         let mut failed = 0;
+        let mut last_err = String::new();
 
         for (pane_id, entry) in &timers {
             let remaining = entry.ttl_seconds - (now - entry.last_turn);
 
-            if herdr::set_pane_tokens(pane_id, remaining, cfg).is_ok() {
-                updated += 1;
-            } else {
-                failed += 1;
+            match herdr::set_pane_tokens(pane_id, remaining, cfg) {
+                Ok(()) => updated += 1,
+                Err(e) => {
+                    failed += 1;
+                    last_err = e.to_string();
+                }
             }
 
             check_notifications(&st, cfg, pane_id, remaining);
@@ -94,7 +97,7 @@ pub fn run(cfg: &Config) -> io::Result<()> {
             consecutive_failures += 1;
             if consecutive_failures >= 3 {
                 logf(&format!(
-                    "all updates failing ({consecutive_failures} consecutive), backing off"
+                    "all updates failing ({consecutive_failures} consecutive), backing off: {last_err}"
                 ));
                 thread::sleep(Duration::from_secs(60));
             }

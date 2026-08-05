@@ -2,9 +2,24 @@ use serde::Deserialize;
 use std::io::{self, Write};
 use std::os::unix::net::UnixStream;
 use std::process::Command;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use crate::config::Config;
+
+/// The herdr binary is not always on the plugin process's PATH — a server
+/// started from a non-login shell inherits none of the shell profile, so an
+/// install under ~/.local/bin is invisible. herdr hands us the absolute path
+/// in the environment; use it, and fall back to PATH lookup.
+fn herdr_bin() -> &'static str {
+    static BIN: OnceLock<String> = OnceLock::new();
+    BIN.get_or_init(|| {
+        std::env::var("HERDR_BIN_PATH")
+            .ok()
+            .filter(|p| !p.is_empty())
+            .unwrap_or_else(|| "herdr".to_string())
+    })
+}
 
 #[derive(Deserialize)]
 pub struct AgentInfo {
@@ -49,18 +64,27 @@ pub fn set_pane_tokens(pane_id: &str, remaining: i64, cfg: &Config) -> io::Resul
         args.extend(["--token", &tier_token, "--clear-token", "cache_warn", "--clear-token", "cache_crit"]);
     }
 
-    Command::new("herdr").args(&args).output().map(|_| ())
+    let out = Command::new(herdr_bin()).args(&args).output()?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        return Err(io::Error::other(format!(
+            "{} pane report-metadata failed: {}",
+            herdr_bin(),
+            stderr.trim()
+        )));
+    }
+    Ok(())
 }
 
 pub fn agent_list() -> io::Result<Vec<AgentInfo>> {
-    let out = Command::new("herdr").args(["agent", "list"]).output()?;
+    let out = Command::new(herdr_bin()).args(["agent", "list"]).output()?;
     let resp: AgentListResp =
         serde_json::from_slice(&out.stdout).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     Ok(resp.result.agents)
 }
 
 pub fn agent_get_title(pane_id: &str) -> String {
-    let Ok(out) = Command::new("herdr").args(["agent", "get", pane_id]).output() else {
+    let Ok(out) = Command::new(herdr_bin()).args(["agent", "get", pane_id]).output() else {
         return pane_id.to_string();
     };
     let Ok(resp) = serde_json::from_slice::<AgentGetResp>(&out.stdout) else {
@@ -75,7 +99,7 @@ pub fn agent_get_title(pane_id: &str) -> String {
 }
 
 pub fn notify(title: &str, body: &str, sound: &str) {
-    let _ = Command::new("herdr")
+    let _ = Command::new(herdr_bin())
         .args(["notification", "show", title, "--body", body, "--sound", sound])
         .output();
 }

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.2
+
+- Resolve the herdr binary via `HERDR_BIN_PATH` instead of bare `herdr` on
+  `PATH` — a server started from a non-login shell (an install under
+  `~/.local/bin`, say) left every CLI call failing to exec, so no tokens were
+  ever pushed and the sidebar stayed empty on that host
+- `set_pane_tokens` now treats a non-zero herdr exit as an error rather than
+  success, and the daemon's back-off log includes the underlying error
+
 ## 0.3.1
 
 - Ship prebuilt binaries in `dist/` and select one via a `[[build]]` hook —
