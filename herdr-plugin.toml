@@ -1,9 +1,14 @@
 id = "cache-ttl"
 name = "Cache TTL Countdown"
-version = "0.3.0"
+version = "0.3.1"
 min_herdr_version = "0.7.5"
 description = "Live prompt-cache countdown per agent pane"
 platforms = ["linux", "macos"]
+
+# Select the prebuilt binary for this host at install time. No toolchain
+# required on the target — dist/ ships one artifact per platform.
+[[build]]
+command = ["sh", "-c", "cp \"dist/cache-ttl-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)\" cache-ttl && chmod +x cache-ttl"]
 
 [[startup]]
 command = ["./cache-ttl", "daemon"]

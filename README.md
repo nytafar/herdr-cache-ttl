@@ -15,6 +15,17 @@ A background daemon ticks every 15 seconds, updating all tracked panes. Agents t
 ## Install
 
 ```bash
+herdr plugin install nytafar/herdr-cache-ttl --yes
+```
+
+No toolchain needed on the target: `dist/` ships a prebuilt binary per platform
+(macOS arm64, static-musl Linux x86_64) and the `[[build]]` hook copies the right
+one into place at install time.
+
+For local development, link the working copy instead:
+
+```bash
+make build
 herdr plugin link /path/to/herdr-cache-ttl
 ```
 
@@ -76,15 +87,18 @@ Create `config.json` in the plugin config directory (`herdr plugin config-dir ca
 ## Building
 
 ```bash
-make build
+make build        # local binary at the plugin root, for `plugin link`
+make dist         # release artifact for this host → dist/cache-ttl-<os>-<arch>
+make dist-linux   # static musl x86_64 build → dist/cache-ttl-linux-x86_64
 ```
 
-Requires Rust (cargo). The binary is copied to the plugin root as `cache-ttl`.
+Requires Rust (cargo). Release artifacts in `dist/` are committed so that
+installs need no toolchain; refresh them when cutting a version.
 
 ## Requirements
 
 - Herdr >= 0.7.5
-- Rust toolchain (build only)
+- Rust toolchain (only to rebuild `dist/` artifacts)
 
 ## License
 

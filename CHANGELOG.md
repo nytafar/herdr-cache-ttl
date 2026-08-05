@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.1
+
+- Ship prebuilt binaries in `dist/` and select one via a `[[build]]` hook —
+  installing from GitHub previously left no binary at all, so the daemon and
+  every event hook failed with "No such file or directory"
+- Remove the pre-rewrite shell implementation (`daemon.sh` and friends), unused
+  since 0.3.0
+- Deploy script: pass `--yes` to `plugin install` (after the repo arg, which the
+  server-side handler requires) and stop swallowing install failures
+
 ## 0.3.0
 
 - Rewrite in Rust — 396KB static binary, no jq/bash runtime dependency

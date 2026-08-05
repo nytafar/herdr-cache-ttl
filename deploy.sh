@@ -18,7 +18,18 @@ echo "==> Deploying cache-ttl plugin to ${TARGET}"
 
 # 1. Install plugin from GitHub (clones into ~/.config/herdr/plugins/github/)
 echo "--- Installing plugin from GitHub..."
-ssh "$TARGET" "${HERDR} plugin install nytafar/herdr-cache-ttl 2>&1 || ${HERDR} plugin list 2>&1 | grep -q cache-ttl && echo 'already installed'"
+ssh "$TARGET" "
+# --yes must come AFTER the repo arg: when a server is running, the CLI
+# forwards to a server-side handler that parses args positionally.
+if ${HERDR} plugin install nytafar/herdr-cache-ttl --yes 2>&1; then
+    echo 'installed'
+elif ${HERDR} plugin list 2>&1 | grep -q cache-ttl; then
+    echo 'already installed'
+else
+    echo 'ERROR: plugin install failed' >&2
+    exit 1
+fi
+"
 
 # 2. Ensure jq is available
 echo "--- Checking jq..."
