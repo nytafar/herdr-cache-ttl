@@ -10,7 +10,7 @@ The plugin watches for agent status transitions (via `pane.agent_status_changed`
 - **Amber** — under 10 minutes
 - **Red** — under 5 minutes or expired (`0m`)
 
-A background daemon ticks every 15 seconds, updating all tracked panes. Notifications fire at 10m, 5m, and 1m remaining.
+A background daemon ticks every 15 seconds, updating all tracked panes. Agents that are actively working get their timers refreshed automatically — no status transition needed. Notifications fire at 10m, 5m, and 1m remaining.
 
 ## Install
 
@@ -37,6 +37,16 @@ herdr server stop && herdr
 
 The daemon starts automatically via the `[[startup]]` hook on server start.
 
+## Sort by cache TTL
+
+Toggle a cache-first sort mode in the agent panel:
+
+```bash
+herdr plugin action invoke sort --plugin cache-ttl
+```
+
+When active, the sidebar label shows "cache" and agents are sorted by cache urgency (warmest first), with attention priority as a tiebreaker. Toggle again to clear the view and restore the native sort mode.
+
 ## Configuration
 
 Create `config.json` in the plugin config directory (`herdr plugin config-dir cache-ttl`):
@@ -61,6 +71,7 @@ Create `config.json` in the plugin config directory (`herdr plugin config-dir ca
 
 - **Reset cache timer** — reset the countdown for the focused pane
 - **Show cache timers** — print all active timers as a table
+- **Toggle cache sort** — sort the agent panel by cache TTL urgency
 
 ## Requirements
 

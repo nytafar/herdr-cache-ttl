@@ -46,7 +46,15 @@ set_pane_tokens() {
     local label
     label=$(format_remaining "$remaining")
 
-    local args=("$pane_id" --source "$METADATA_SOURCE" --ttl-ms "$TOKEN_TTL_MS")
+    local sort_val
+    if (( remaining <= 0 )); then
+        sort_val="000000"
+    else
+        sort_val=$(printf '%06d' "$remaining")
+    fi
+
+    local args=("$pane_id" --source "$METADATA_SOURCE" --ttl-ms "$TOKEN_TTL_MS"
+                --token "cache_sort=${sort_val}")
 
     if (( remaining <= CRIT_AT )); then
         args+=(--token "cache_crit=${label}" --clear-token cache_ok --clear-token cache_warn)
@@ -144,6 +152,32 @@ while true; do
     if (( tick_count % CLEANUP_INTERVAL == 0 )); then
         prune_stale_panes
         timers=$(cat "$TIMERS_FILE" 2>/dev/null) || continue
+    fi
+
+    # Refresh timers for agents that are currently working — their cache
+    # is warm because the API is actively being called, but no status
+    # *transition* fires to trigger on-status-change.sh.
+    active_agents=$(herdr agent list 2>/dev/null | jq -r '.result.agents[]? | select(.agent_status == "working") | .pane_id' 2>/dev/null) || true
+    if [[ -n "$active_agents" ]]; then
+        timers_changed=false
+        while IFS= read -r active_pid; do
+            [[ -z "$active_pid" ]] && continue
+            current_ts=$(printf '%s' "$timers" | jq -r --arg pid "$active_pid" '.[$pid].last_turn // 0' 2>/dev/null) || continue
+            if (( now - current_ts > TICK_INTERVAL )); then
+                tmp_file="${TIMERS_FILE}.tmp.$$"
+                if jq --arg pid "$active_pid" --argjson ts "$now" --argjson ttl "$DEFAULT_TTL_SECONDS" \
+                   '.[$pid] = { last_turn: $ts, ttl_seconds: $ttl }' \
+                   "$TIMERS_FILE" > "$tmp_file" 2>/dev/null; then
+                    mv "$tmp_file" "$TIMERS_FILE"
+                    timers_changed=true
+                else
+                    rm -f "$tmp_file"
+                fi
+            fi
+        done <<< "$active_agents"
+        if $timers_changed; then
+            timers=$(cat "$TIMERS_FILE" 2>/dev/null) || continue
+        fi
     fi
 
     updated=0

@@ -1,6 +1,6 @@
 id = "cache-ttl"
 name = "Cache TTL Countdown"
-version = "0.1.0"
+version = "0.2.0"
 min_herdr_version = "0.6.10"
 description = "Live prompt-cache countdown per agent pane"
 platforms = ["linux", "macos"]
@@ -29,3 +29,10 @@ title = "Show cache timers"
 description = "Print all active cache TTL timers"
 contexts = ["workspace"]
 command = ["bash", "show-timers.sh"]
+
+[[actions]]
+id = "sort"
+title = "Toggle cache sort"
+description = "Sort agent panel by cache TTL urgency"
+contexts = ["workspace"]
+command = ["bash", "toggle-sort.sh"]
