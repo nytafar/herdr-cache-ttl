@@ -36,6 +36,10 @@ if [[ ! -f \"\$CONFIG_FILE\" ]]; then
     echo 'created config.toml with sidebar tokens'
 elif grep -q 'cache_ok' \"\$CONFIG_FILE\"; then
     echo 'sidebar tokens already configured'
+elif grep -q '\\[ui\\.sidebar\\.agents\\]' \"\$CONFIG_FILE\"; then
+    echo 'WARNING: [ui.sidebar.agents] already exists but is missing cache tokens.'
+    echo 'Please add this row manually inside that section:'
+    echo '${SIDEBAR_CONFIG}'
 else
     printf '\n[ui.sidebar.agents]\n${SIDEBAR_CONFIG}\n' >> \"\$CONFIG_FILE\"
     echo 'appended sidebar tokens to config.toml'

@@ -18,7 +18,17 @@ mkdir -p "$STATE_DIR"
 [[ -f "$TIMERS_FILE" ]] || printf '{}' > "$TIMERS_FILE"
 [[ -f "$NOTIFIED_FILE" ]] || printf '{}' > "$NOTIFIED_FILE"
 
+# Guard against duplicate daemons (startup re-fires on live reload)
+if [[ -f "$PID_FILE" ]]; then
+    existing_pid=$(cat "$PID_FILE" 2>/dev/null)
+    if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null; then
+        printf '[%s] daemon already running (pid=%s), exiting\n' "$(date +%H:%M:%S)" "$existing_pid" >&2
+        exit 0
+    fi
+fi
+
 printf '%s' "$$" > "$PID_FILE"
+trap 'rm -f "$PID_FILE"' EXIT
 
 CLEANUP_INTERVAL=10
 tick_count=0
@@ -96,24 +106,26 @@ check_notification_threshold() {
                     --sound request \
                     2>/dev/null || true
 
-                local tmp_file="${NOTIFIED_FILE}.tmp.$$"
-                if jq --arg pid "$pane_id" --argjson t "$threshold" \
-                   '.[$pid] = ((.[$pid] // []) + [$t])' \
-                   "$NOTIFIED_FILE" > "$tmp_file" 2>/dev/null; then
-                    mv "$tmp_file" "$NOTIFIED_FILE"
-                else
-                    rm -f "$tmp_file"
-                fi
+                atomic_jq "$NOTIFIED_FILE" \
+                    --arg pid "$pane_id" --argjson t "$threshold" \
+                    '.[$pid] = ((.[$pid] // []) + [$t])'
             fi
-            break
         fi
     done
 }
 
 prune_stale_panes() {
+    local list_output
+    list_output=$(herdr agent list 2>/dev/null) || return 0
+
     local active_panes
-    active_panes=$(herdr agent list 2>/dev/null | jq -r '.result.agents[]?.pane_id // empty' 2>/dev/null) || return 0
-    [[ -z "$active_panes" ]] && return 0
+    active_panes=$(printf '%s' "$list_output" | jq -r '.result.agents[]?.pane_id // empty' 2>/dev/null) || return 0
+
+    if [[ -z "$active_panes" ]]; then
+        # No agents remain — all tracked panes are stale
+        atomic_jq "$TIMERS_FILE" -n '{}'
+        return 0
+    fi
 
     local timers
     timers=$(cat "$TIMERS_FILE" 2>/dev/null) || return 0
@@ -126,16 +138,20 @@ prune_stale_panes() {
         fi
     done < <(printf '%s' "$timers" | jq -r 'keys[]' 2>/dev/null)
 
-    if (( ${#stale_ids[@]} == 0 )); then return 0; fi
     for pane_id in "${stale_ids[@]}"; do
-        local tmp_file="${TIMERS_FILE}.tmp.$$"
-        if jq --arg pid "$pane_id" 'del(.[$pid])' "$TIMERS_FILE" > "$tmp_file" 2>/dev/null; then
-            mv "$tmp_file" "$TIMERS_FILE"
-        else
-            rm -f "$tmp_file"
-        fi
+        atomic_jq "$TIMERS_FILE" --arg pid "$pane_id" 'del(.[$pid])'
     done
 }
+
+# Reapply sort view if it was active before a restart
+SORT_STATE_FILE="${STATE_DIR}/sort_active"
+if [[ -f "$SORT_STATE_FILE" ]]; then
+    SOCKET="${HERDR_SOCKET_PATH:-}"
+    if [[ -n "$SOCKET" ]]; then
+        printf '{"id":"on","method":"agent.view.set","params":{"source":"plugin:cache-ttl","label":"cache","sort":[{"field":{"token":"cache_sort"},"order":"desc"},{"field":"attention","order":"desc"},{"field":"state_change_seq","order":"desc"}]}}\n' \
+            | nc -U "$SOCKET" 2>/dev/null || log "failed to reapply sort view"
+    fi
+fi
 
 log "daemon started, pid=$$, tick=${TICK_INTERVAL}s"
 
@@ -164,14 +180,10 @@ while true; do
             [[ -z "$active_pid" ]] && continue
             current_ts=$(printf '%s' "$timers" | jq -r --arg pid "$active_pid" '.[$pid].last_turn // 0' 2>/dev/null) || continue
             if (( now - current_ts > TICK_INTERVAL )); then
-                tmp_file="${TIMERS_FILE}.tmp.$$"
-                if jq --arg pid "$active_pid" --argjson ts "$now" --argjson ttl "$DEFAULT_TTL_SECONDS" \
-                   '.[$pid] = { last_turn: $ts, ttl_seconds: $ttl }' \
-                   "$TIMERS_FILE" > "$tmp_file" 2>/dev/null; then
-                    mv "$tmp_file" "$TIMERS_FILE"
+                if atomic_jq "$TIMERS_FILE" \
+                    --arg pid "$active_pid" --argjson ts "$now" --argjson ttl "$DEFAULT_TTL_SECONDS" \
+                    '.[$pid] = { last_turn: $ts, ttl_seconds: $ttl }'; then
                     timers_changed=true
-                else
-                    rm -f "$tmp_file"
                 fi
             fi
         done <<< "$active_agents"

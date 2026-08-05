@@ -75,7 +75,7 @@ Create `config.json` in the plugin config directory (`herdr plugin config-dir ca
 
 ## Requirements
 
-- Herdr >= 0.6.10
+- Herdr >= 0.7.5
 - `jq`
 - `bash`
 

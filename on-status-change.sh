@@ -54,16 +54,13 @@ now=$(date +%s)
 mkdir -p "$STATE_DIR"
 [[ -f "$TIMERS_FILE" ]] || printf '{}' > "$TIMERS_FILE"
 
-tmp_file="${TIMERS_FILE}.tmp.$$"
-jq --arg pid "$pane_id" \
-   --argjson ts "$now" \
-   --argjson ttl "$DEFAULT_TTL_SECONDS" \
-   '.[$pid] = { last_turn: $ts, ttl_seconds: $ttl }' \
-   "$TIMERS_FILE" > "$tmp_file" && mv "$tmp_file" "$TIMERS_FILE"
+atomic_jq "$TIMERS_FILE" \
+    --arg pid "$pane_id" \
+    --argjson ts "$now" \
+    --argjson ttl "$DEFAULT_TTL_SECONDS" \
+    '.[$pid] = { last_turn: $ts, ttl_seconds: $ttl }'
 
 # Clear notification state for this pane (countdown was reset)
 if [[ -f "$NOTIFIED_FILE" ]]; then
-    tmp_file="${NOTIFIED_FILE}.tmp.$$"
-    jq --arg pid "$pane_id" 'del(.[$pid])' \
-       "$NOTIFIED_FILE" > "$tmp_file" && mv "$tmp_file" "$NOTIFIED_FILE"
+    atomic_jq "$NOTIFIED_FILE" --arg pid "$pane_id" 'del(.[$pid])'
 fi

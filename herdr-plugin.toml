@@ -1,7 +1,7 @@
 id = "cache-ttl"
 name = "Cache TTL Countdown"
-version = "0.2.0"
-min_herdr_version = "0.6.10"
+version = "0.2.1"
+min_herdr_version = "0.7.5"
 description = "Live prompt-cache countdown per agent pane"
 platforms = ["linux", "macos"]
 
@@ -11,6 +11,10 @@ command = ["bash", "daemon.sh"]
 [[events]]
 on = "pane.agent_status_changed"
 command = ["bash", "on-status-change.sh"]
+
+[[events]]
+on = "pane.closed"
+command = ["bash", "on-pane-closed.sh"]
 
 [[events]]
 on = "pane.exited"

@@ -15,12 +15,8 @@ pane_id=$(printf '%s' "$event_json" | jq -r '.data.pane_id // empty')
 
 [[ -f "$TIMERS_FILE" ]] || exit 0
 
-tmp_file="${TIMERS_FILE}.tmp.$$"
-jq --arg pid "$pane_id" 'del(.[$pid])' \
-   "$TIMERS_FILE" > "$tmp_file" && mv "$tmp_file" "$TIMERS_FILE"
+atomic_jq "$TIMERS_FILE" --arg pid "$pane_id" 'del(.[$pid])'
 
 if [[ -f "$NOTIFIED_FILE" ]]; then
-    tmp_file="${NOTIFIED_FILE}.tmp.$$"
-    jq --arg pid "$pane_id" 'del(.[$pid])' \
-       "$NOTIFIED_FILE" > "$tmp_file" && mv "$tmp_file" "$NOTIFIED_FILE"
+    atomic_jq "$NOTIFIED_FILE" --arg pid "$pane_id" 'del(.[$pid])'
 fi
