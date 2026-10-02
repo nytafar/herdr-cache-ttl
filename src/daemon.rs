@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::io::Write;
 use std::{env, fs, io, thread, time::Duration};
 
 use crate::config::Config;
@@ -197,5 +198,7 @@ fn logf(msg: &str) {
         let tm = libc::localtime(&t);
         ((*tm).tm_hour, (*tm).tm_min, (*tm).tm_sec)
     };
-    eprintln!("[{h:02}:{m:02}:{s:02}] {msg}");
+    // eprintln! panics on a write error, and with panic = "abort" that kills
+    // the daemon when herdr drops the read end of its stderr pipe.
+    let _ = writeln!(io::stderr(), "[{h:02}:{m:02}:{s:02}] {msg}");
 }

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.3
+
+- Fix the daemon aborting (SIGABRT) when herdr closes the read end of its
+  stderr pipe: `logf` used `eprintln!`, which panics on a write error, and the
+  release profile's `panic = "abort"` turned that into a crash. Log writes now
+  ignore errors. Seen on herdr 0.9.3, where a restarted server left the daemon
+  with an unreadable stderr
+- Verified against herdr 0.9.3: event hooks, `agent list`/`agent get`, and
+  `pane report-metadata` token pushes all work
+- Add GitHub Actions: build and clippy on every push and PR; on `v*` tags,
+  build all four platform binaries, refresh `dist/` on main and attach them to
+  the release
+
 ## 0.3.2
 
 - Resolve the herdr binary via `HERDR_BIN_PATH` instead of bare `herdr` on

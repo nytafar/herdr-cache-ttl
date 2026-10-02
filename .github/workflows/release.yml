@@ -1,0 +1,60 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { runner: ubuntu-latest,    target: x86_64-unknown-linux-musl,  name: cache-ttl-linux-x86_64 }
+          - { runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, name: cache-ttl-linux-aarch64 }
+          - { runner: macos-14,         target: aarch64-apple-darwin,       name: cache-ttl-darwin-arm64 }
+          - { runner: macos-13,         target: x86_64-apple-darwin,        name: cache-ttl-darwin-x86_64 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - run: cp target/${{ matrix.target }}/release/cache-ttl ${{ matrix.name }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Refresh dist/ on main
+        run: |
+          mkdir -p dist
+          cp artifacts/cache-ttl-* dist/
+          chmod +x dist/cache-ttl-*
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist
+          git diff --cached --quiet || git commit -m "build: refresh dist/ for ${GITHUB_REF_NAME}"
+          git push origin main
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" artifacts/cache-ttl-* \
+            --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" \
+            --notes "$(awk -v v="${GITHUB_REF_NAME#v}" '$0=="## "v{f=1;next} /^## /{f=0} f' CHANGELOG.md)"

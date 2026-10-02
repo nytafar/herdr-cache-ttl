@@ -93,11 +93,12 @@ make dist-linux   # static musl x86_64 build → dist/cache-ttl-linux-x86_64
 ```
 
 Requires Rust (cargo). Release artifacts in `dist/` are committed so that
-installs need no toolchain; refresh them when cutting a version.
+installs need no toolchain. Pushing a `v*` tag has CI rebuild all platforms and
+commit the refreshed `dist/` to main; `make dist*` is for local testing.
 
 ## Requirements
 
-- Herdr >= 0.7.5
+- Herdr >= 0.7.5 (tested up to 0.9.3)
 - Rust toolchain (only to rebuild `dist/` artifacts)
 
 ## License
