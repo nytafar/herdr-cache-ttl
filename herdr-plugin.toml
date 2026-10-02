@@ -1,6 +1,6 @@
 id = "cache-ttl"
 name = "Cache TTL Countdown"
-version = "0.3.3"
+version = "0.3.4"
 min_herdr_version = "0.7.5"
 description = "Live prompt-cache countdown per agent pane"
 platforms = ["linux", "macos"]

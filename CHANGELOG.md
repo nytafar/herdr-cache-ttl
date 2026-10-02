@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.4
+
+- Release workflow: build x86_64 macOS on `macos-14` (cross-compiled) — the
+  `macos-13` runner is retired, so the v0.3.3 release never completed. 0.3.4
+  carries the 0.3.3 fix below and is the first release with refreshed
+  binaries for every platform
+
 ## 0.3.3
 
 - Fix the daemon aborting (SIGABRT) when herdr closes the read end of its
